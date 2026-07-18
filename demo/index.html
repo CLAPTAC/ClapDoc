@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>doc-editor demo</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    body {
+      max-width: 720px;
+      margin: 40px auto;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      padding: 0 16px;
+    }
+    h1 { font-size: 1.1em; color: #666; }
+    doc-editor {
+      display: block;
+      border: 1px solid #ddd;
+      border-radius: 8px;
+      padding: 24px;
+      min-height: 300px;
+    }
+    pre {
+      background: #f5f5f5;
+      padding: 12px;
+      border-radius: 6px;
+      overflow: auto;
+      max-height: 240px;
+      font-size: 12px;
+    }
+    button {
+      margin: 12px 8px 12px 0;
+      padding: 6px 14px;
+      cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+  <h1>&lt;doc-editor&gt; — drop-in usage via a single script tag</h1>
+
+  <!--
+    This is the whole integration: one script tag, one custom element.
+    No build step, no framework required on the consuming site.
+  -->
+  <doc-editor placeholder="Start writing…"></doc-editor>
+
+  <button id="save">Save (log JSON)</button>
+  <button id="markdown">Export as Markdown</button>
+  <button id="clear">Clear</button>
+
+  <pre id="output"></pre>
+
+  <script src="../dist/doc-editor.global.js"></script>
+  <script>
+    const el = document.querySelector('doc-editor')
+    const output = document.getElementById('output')
+
+    el.addEventListener('change', (e) => {
+      console.log('doc-editor change', e.detail)
+    })
+
+    document.getElementById('save').addEventListener('click', async () => {
+      const data = await el.save()
+      output.textContent = JSON.stringify(data, null, 2)
+    })
+
+    document.getElementById('markdown').addEventListener('click', async () => {
+      const data = await el.save()
+      output.textContent = DocEditor.blocksToMarkdown(data)
+    })
+
+    document.getElementById('clear').addEventListener('click', () => el.clear())
+  </script>
+</body>
+</html>
