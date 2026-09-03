@@ -1,5 +1,7 @@
 # ClapDoc
 
+[![version](https://img.shields.io/badge/version-1.0.0-0f766e)](./CHANGELOG.md)
+
 A framework-agnostic, block-based document editor — Editor.js-inspired Tool API,
 shipped as a `<doc-editor>` Web Component. Drop it into any app (React, Vue,
 plain HTML) with a script tag or `npm install`.

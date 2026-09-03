@@ -1,0 +1,12 @@
+---
+description: Never add Cursor Co-authored-by trailers to commits
+alwaysApply: true
+---
+
+# No Cursor co-authors
+
+Never add `Co-authored-by` lines for Cursor or any AI/agent identity to git commits.
+
+- Do not include `Co-authored-by: Cursor`, `Co-authored-by: cursoragent`, or similar trailers
+- If tooling injects a Cursor co-author, rewrite the commit without it before finishing
+- Commit messages should name only the human git author
