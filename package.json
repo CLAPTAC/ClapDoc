@@ -1,6 +1,6 @@
 {
   "name": "clapdoc",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "description": "A framework-agnostic, block-based document editor (Editor.js-style Tool API) packaged as a Web Component, embeddable in any app.",
   "license": "MIT",
   "repository": {
@@ -17,10 +17,16 @@
       "types": "./dist/doc-editor.d.ts",
       "import": "./dist/doc-editor.js",
       "require": "./dist/doc-editor.cjs"
+    },
+    "./react": {
+      "types": "./dist/react.d.ts",
+      "import": "./dist/react.js",
+      "require": "./dist/react.cjs"
     }
   },
   "files": [
-    "dist"
+    "dist",
+    "CHANGELOG.md"
   ],
   "sideEffects": [
     "./dist/doc-editor.js",
@@ -31,11 +37,25 @@
     "build": "tsup",
     "dev": "tsup --watch",
     "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
     "prepare": "npm run build"
   },
+  "peerDependencies": {
+    "react": ">=17"
+  },
+  "peerDependenciesMeta": {
+    "react": {
+      "optional": true
+    }
+  },
   "devDependencies": {
+    "@types/react": "^18.3.12",
+    "jsdom": "^25.0.1",
+    "react": "^18.3.1",
     "tsup": "^8.3.5",
-    "typescript": "^5.6.3"
+    "typescript": "^5.6.3",
+    "vitest": "^2.1.5"
   },
   "keywords": [
     "editor",

@@ -1,4 +1,4 @@
-import type { BlockTool, BlockToolConstructorOptions, BlockToolData } from '../types'
+import type { BlockTool, BlockToolConstructorOptions, BlockToolData, ConversionConfig, PasteConfig } from '../types'
 
 interface QuoteData extends BlockToolData {
   text?: string
@@ -11,10 +11,23 @@ export class QuoteTool implements BlockTool {
     icon: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 21c3-2 4-4 4-8V7h6v6H7m8 8c3-2 4-4 4-8V7h6v6h-6"/></svg>',
   }
 
-  private data: QuoteData
+  static pasteConfig: PasteConfig = {
+    tags: ['BLOCKQUOTE'],
+  }
 
-  constructor({ data }: BlockToolConstructorOptions<QuoteData>) {
+  static conversionConfig: ConversionConfig = {
+    export: (data) => String((data as QuoteData).text ?? ''),
+    import: (text) => ({ text, caption: '' }),
+  }
+
+  static isReadOnlySupported = true
+
+  private data: QuoteData
+  private readOnly: boolean
+
+  constructor({ data, readOnly }: BlockToolConstructorOptions<QuoteData>) {
     this.data = data
+    this.readOnly = !!readOnly
   }
 
   render(): HTMLElement {
@@ -22,13 +35,13 @@ export class QuoteTool implements BlockTool {
     wrap.className = 'de-quote'
 
     const text = document.createElement('div')
-    text.contentEditable = 'true'
+    text.contentEditable = this.readOnly ? 'false' : 'true'
     text.className = 'de-quote-text'
     text.dataset.placeholder = 'Quote'
     text.innerHTML = this.data.text ?? ''
 
     const caption = document.createElement('div')
-    caption.contentEditable = 'true'
+    caption.contentEditable = this.readOnly ? 'false' : 'true'
     caption.className = 'de-quote-caption'
     caption.dataset.placeholder = 'Author'
     caption.innerHTML = this.data.caption ?? ''
