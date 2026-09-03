@@ -1,75 +1,100 @@
 # ClapDoc
 
-A framework-agnostic, block-based document editor — Editor.js's Tool API,
+A framework-agnostic, block-based document editor — Editor.js-inspired Tool API,
 shipped as a `<doc-editor>` Web Component. Drop it into any app (React, Vue,
-plain HTML, whatever) with a single script tag or `npm install`.
+plain HTML) with a script tag or `npm install`.
 
-- **No framework lock-in.** The core `Editor` class and every built-in tool
-  are plain TypeScript/DOM. The Web Component is a thin wrapper around it.
-- **Pluggable tools.** Ship your own block types by implementing three
-  methods: `render()`, `save()`, `validate?()`.
-- **JSON output**, shaped like Editor.js's `OutputData` (`{ time, blocks,
-  version }`), so it's easy to store, diff, or render elsewhere.
+- **Controllable.** UI chrome, shortcuts, sanitize, i18n, events, and a full block API.
+- **Pluggable tools & tunes.** Custom block types, settings panels, paste/conversion hooks, and alignment tunes.
+- **JSON output** shaped like Editor.js `OutputData` (`{ time, blocks, version }`).
 - Built-in tools: Paragraph, Header, List, Checklist, Quote, Divider, Image.
+- Undo/redo, drag-and-drop, slash commands (`/`), paste pipeline, optional inline toolbar.
 
 ## Install
-
-Not published to the npm registry — install directly from this repo:
 
 ```bash
 npm install git+https://github.com/CLAPTAC/ClapDoc.git
 ```
 
-`npm install` on this repo runs a `prepare` script that builds `dist/`
-automatically, so the git install works out of the box. Pin to a release
-instead of always tracking `main` with `...ClapDoc.git#v0.1.0`.
+`npm install` runs `prepare` → builds `dist/`. Pin a release with `#v1.0.0`.
 
-## Usage — Web Component (zero framework)
-
-For plain HTML with no npm step, self-host the built file — clone this repo,
-run `npm install && npm run build`, and serve `dist/doc-editor.global.js`
-from your own static assets or CDN:
+## Usage — Web Component
 
 ```html
 <script src="/vendor/doc-editor.global.js"></script>
 
-<doc-editor placeholder="Start writing…"></doc-editor>
+<doc-editor placeholder="Start writing…" inline-toolbar></doc-editor>
 
 <script>
   const el = document.querySelector('doc-editor')
 
-  el.addEventListener('change', (e) => {
-    console.log('current document:', e.detail) // OutputData
-  })
+  el.ui = { controls: ['add', 'drag', 'settings', 'delete'] }
+  el.addEventListener('change', (e) => console.log(e.detail))
+  el.addEventListener('block-added', (e) => console.log(e.detail))
 
-  // Or pull it on demand:
   const data = await el.save()
+  await el.undo()
 </script>
 ```
 
-See `demo/index.html` for a runnable version of this.
+See `demo/index.html` for a runnable example.
 
-## Usage — as a module
+## Usage — module
 
 ```ts
-import { Editor } from 'clapdoc'
+import { Editor, ImageTool, AlignmentTune, blocksToMarkdown } from 'clapdoc'
 
 const editor = new Editor({
-  holder: document.getElementById('editor'),
+  holder: '#editor',
   placeholder: 'Start writing…',
+  autofocus: true,
+  inlineToolbar: true,
+  ui: { showControls: true, controls: ['add', 'drag', 'up', 'down', 'settings', 'delete'] },
+  tools: {
+    image: {
+      class: ImageTool,
+      config: {
+        uploader: async (file) => uploadToMyStorage(file),
+      },
+    },
+  },
+  tunes: { alignment: AlignmentTune },
   onChange: (data) => saveToServer(data),
+  onReady: () => console.log('ready'),
 })
 
-const data = await editor.save()
+const api = editor.getAPI()
+api.blocks.insert({ type: 'header', data: { text: 'Hello', level: 2 } })
+api.events.on('block-moved', ({ id, from, to }) => console.log(id, from, to))
+
+const markdown = blocksToMarkdown(await editor.save())
 ```
 
-## Writing a custom tool
+## Theming
+
+Override CSS variables on `:host` or `.de-root`:
+
+```css
+doc-editor {
+  --de-fg: #111;
+  --de-accent: #0d9488;
+  --de-control-width: 96px;
+  --de-radius: 8px;
+}
+```
+
+## Custom tool
 
 ```ts
 import type { BlockTool, BlockToolConstructorOptions } from 'clapdoc'
 
 class CalloutTool implements BlockTool {
   static toolbox = { title: 'Callout', icon: '<svg>…</svg>' }
+  static pasteConfig = { tags: ['ASIDE'] }
+  static conversionConfig = {
+    export: (data) => String(data.text ?? ''),
+    import: (text) => ({ text }),
+  }
 
   constructor({ data }: BlockToolConstructorOptions) {
     this.data = data
@@ -83,44 +108,44 @@ class CalloutTool implements BlockTool {
     return el
   }
 
+  renderSettings() {
+    const panel = document.createElement('div')
+    // …gear UI
+    return panel
+  }
+
   save(blockContent) {
     return { text: blockContent.innerHTML }
   }
 }
-
-const editor = new Editor({
-  holder: '#editor',
-  tools: { callout: CalloutTool },
-})
 ```
 
-Register it on the Web Component the same way: `el.tools = { callout: CalloutTool }`.
+## React
 
-## Exporting to Markdown
+```tsx
+import 'clapdoc'
+import { ClapDoc } from 'clapdoc/react'
 
-```ts
-import { blocksToMarkdown } from 'clapdoc'
-
-const markdown = blocksToMarkdown(await editor.save())
+export function Page() {
+  return (
+    <ClapDoc
+      placeholder="Start writing…"
+      inlineToolbar
+      onChange={(data) => console.log(data)}
+    />
+  )
+}
 ```
 
-## Build
+## Build & test
 
 ```bash
 npm install
-npm run build     # emits dist/{doc-editor.js, doc-editor.cjs, doc-editor.global.js, doc-editor.d.ts}
-npm run dev       # watch mode
+npm run build
+npm test
+npm run typecheck
 ```
 
-## Status / what's not done yet
+## Status
 
-This is a working v1 scaffold, not feature parity with a mature editor:
-
-- No drag-and-drop reordering (up/down buttons only).
-- No image upload endpoint by default (reads local files as data URLs; pass
-  `config.uploader` to route to your own storage).
-- No paste-handling / clipboard sanitization beyond what `sanitizeHtml`
-  offers as a utility — wire it up in a custom paste handler if you need it.
-- No undo/redo history.
-
-These are natural next additions once the core API stabilizes.
+v1.0 freezes the public types in `src/types.ts`. Still not a full Editor.js clone — no collaborative editing / CRDT.

@@ -18,6 +18,14 @@
       border-radius: 8px;
       padding: 24px;
       min-height: 300px;
+      /* Force a readable light demo surface even when the OS is in dark mode */
+      color-scheme: light;
+      --de-fg: #1a1a1a;
+      --de-bg: #ffffff;
+      --de-menu-bg: #ffffff;
+      --de-menu-fg: #1a1a1a;
+      --de-accent: #2563eb;
+      background: #fff;
     }
     pre {
       background: #f5f5f5;
@@ -32,19 +40,20 @@
       padding: 6px 14px;
       cursor: pointer;
     }
+    .hint { color: #888; font-size: 13px; margin-bottom: 12px; }
   </style>
 </head>
 <body>
-  <h1>&lt;doc-editor&gt; — drop-in usage via a single script tag</h1>
+  <h1>&lt;doc-editor&gt; — controllable block editor</h1>
+  <p class="hint">Hover a block for ⠿ drag and + add. Use ⋯ for move/settings/delete. Type <kbd>/</kbd> on an empty line for blocks. Undo with Ctrl/Cmd+Z.</p>
 
-  <!--
-    This is the whole integration: one script tag, one custom element.
-    No build step, no framework required on the consuming site.
-  -->
-  <doc-editor placeholder="Start writing…"></doc-editor>
+  <doc-editor placeholder="Start writing… Type / for blocks" inline-toolbar autofocus></doc-editor>
 
   <button id="save">Save (log JSON)</button>
   <button id="markdown">Export as Markdown</button>
+  <button id="undo">Undo</button>
+  <button id="redo">Redo</button>
+  <button id="readonly">Toggle read-only</button>
   <button id="clear">Clear</button>
 
   <pre id="output"></pre>
@@ -53,10 +62,15 @@
   <script>
     const el = document.querySelector('doc-editor')
     const output = document.getElementById('output')
+    let ro = false
+
+    el.tunes = { alignment: DocEditor.AlignmentTune }
 
     el.addEventListener('change', (e) => {
-      console.log('doc-editor change', e.detail)
+      console.log('change', e.detail)
     })
+    el.addEventListener('ready', () => console.log('ready'))
+    el.addEventListener('block-added', (e) => console.log('block-added', e.detail))
 
     document.getElementById('save').addEventListener('click', async () => {
       const data = await el.save()
@@ -68,7 +82,13 @@
       output.textContent = DocEditor.blocksToMarkdown(data)
     })
 
+    document.getElementById('undo').addEventListener('click', () => el.undo())
+    document.getElementById('redo').addEventListener('click', () => el.redo())
     document.getElementById('clear').addEventListener('click', () => el.clear())
+    document.getElementById('readonly').addEventListener('click', () => {
+      ro = !ro
+      el.setReadOnly(ro)
+    })
   </script>
 </body>
 </html>
