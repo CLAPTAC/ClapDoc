@@ -287,4 +287,63 @@ export const STYLES = /* css */ `
 .de-block:not(:has(.de-controls)) .de-tune-wrap {
   grid-column: 1;
 }
+
+/* Touch / narrow viewports */
+@media (hover: none), (pointer: coarse) {
+  .de-controls {
+    opacity: 1;
+    pointer-events: auto;
+  }
+  .de-btn {
+    width: 32px;
+    height: 32px;
+    flex: 0 0 32px;
+    font-size: 16px;
+  }
+}
+
+@media (max-width: 640px) {
+  :host {
+    --de-control-width: 56px;
+    --de-font-size: 16px;
+  }
+  .de-block {
+    column-gap: 2px;
+    padding: 4px 2px;
+  }
+  .de-header[data-level="1"] { font-size: 1.55em; }
+  .de-header[data-level="2"] { font-size: 1.3em; }
+  .de-header[data-level="3"] { font-size: 1.15em; }
+  .de-list {
+    padding-left: 1.15em;
+  }
+  .de-menu,
+  .de-settings {
+    min-width: 0;
+    width: max-content;
+    max-width: min(280px, calc(100vw - 1.5rem));
+    right: 0;
+    left: auto;
+  }
+  .de-slash-menu {
+    left: 0;
+    right: 0;
+    width: auto;
+    max-width: none;
+  }
+  .de-menu-item {
+    white-space: normal;
+    font-size: 15px;
+    padding: 10px 12px;
+  }
+  .de-inline-toolbar {
+    left: 50% !important;
+    max-width: calc(100vw - 1rem);
+  }
+  .de-image-url,
+  .de-image-file {
+    max-width: 100%;
+    font-size: 16px; /* avoid iOS input zoom */
+  }
+}
 `
