@@ -1,4 +1,5 @@
 import type { EditorAPI } from '../types'
+import { isSafeHref } from '../utils/markdown'
 
 /**
  * Opt-in selection toolbar: bold / italic / link on contenteditable selection.
@@ -68,7 +69,9 @@ export class InlineToolbar {
         const cmd = btn.dataset.cmd
         if (cmd === 'createLink') {
           const url = window.prompt(this.api.i18n.t('inline.linkPrompt', 'Link URL'), 'https://')
-          if (url) document.execCommand('createLink', false, url)
+          if (url && isSafeHref(url)) {
+            document.execCommand('createLink', false, url.trim())
+          }
         } else if (cmd) {
           document.execCommand(cmd, false)
         }

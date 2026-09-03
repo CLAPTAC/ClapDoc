@@ -11,13 +11,14 @@ describe('sanitizeHtml', () => {
   it('strips script tags and event handlers', () => {
     const dirty = `<p onclick="alert(1)">hi</p><script>evil()</script>`
     const clean = sanitizeHtml(dirty)
-    expect(clean).not.toContain('script')
-    expect(clean).not.toContain('onclick')
+    expect(clean).not.toMatch(/script/i)
+    expect(clean).not.toMatch(/onclick/i)
     expect(clean).toContain('hi')
   })
 
-  it('neutralizes javascript: URLs', () => {
-    expect(sanitizeHtml(`<a href="javascript:alert(1)">x</a>`)).toContain('href="#"')
+  it('neutralizes javascript: URLs and unquoted handlers', () => {
+    expect(sanitizeHtml(`<a href="javascript:alert(1)">x</a>`)).toMatch(/href="#"/)
+    expect(sanitizeHtml(`<img src=x onerror=alert(1)>`)).not.toMatch(/onerror/i)
   })
 })
 
@@ -99,6 +100,19 @@ describe('processPaste', () => {
     const result = processPaste(event, { tools, defaultBlock: 'paragraph' })
     expect(result?.[0]?.type).toBe('header')
     expect(result?.[0]?.data).toMatchObject({ level: 2, text: 'Hello' })
+  })
+
+  it('parses HTML lists into list items (not raw li markup)', () => {
+    const tools = resolveTools(DEFAULT_TOOLS)
+    const event = {
+      clipboardData: {
+        getData: (type: string) =>
+          type === 'text/html' ? '<ul><li>one</li><li>two</li></ul>' : '',
+      },
+    } as unknown as ClipboardEvent
+    const result = processPaste(event, { tools, defaultBlock: 'paragraph' })
+    expect(result?.[0]?.type).toBe('list')
+    expect(result?.[0]?.data).toEqual({ style: 'unordered', items: ['one', 'two'] })
   })
 })
 

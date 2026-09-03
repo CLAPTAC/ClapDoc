@@ -27,6 +27,7 @@ export class DocEditorElement extends HTMLElement {
   private _sanitize?: SanitizeConfig
   private _i18n?: EditorI18n
   private _inlineToolbar = false
+  private syncingReadonly = false
   private boundHandlers = new Map<string, (payload: unknown) => void>()
 
   static get observedAttributes(): string[] {
@@ -50,8 +51,14 @@ export class DocEditorElement extends HTMLElement {
     this.teardownEditor()
   }
 
-  attributeChangedCallback(): void {
-    if (this.isConnected) this.mount()
+  attributeChangedCallback(name: string): void {
+    if (!this.isConnected) return
+    if (name === 'readonly') {
+      // Flip in place — do not remount (would wipe caret + history).
+      if (!this.syncingReadonly) this.editor?.setReadOnly(this.hasAttribute('readonly'))
+      return
+    }
+    this.mount()
   }
 
   set tools(tools: EditorTools) {
@@ -208,8 +215,10 @@ export class DocEditorElement extends HTMLElement {
   }
 
   setReadOnly(value: boolean): void {
+    this.syncingReadonly = true
     if (value) this.setAttribute('readonly', '')
     else this.removeAttribute('readonly')
+    this.syncingReadonly = false
     this.editor?.setReadOnly(value)
   }
 

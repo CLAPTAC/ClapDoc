@@ -68,72 +68,80 @@ type DocEditorEl = HTMLElement & {
  */
 export function ClapDoc(props: ClapDocProps): ReactElement {
   const ref = useRef<DocEditorEl | null>(null)
-  const {
-    data,
-    tools,
-    tunes,
-    plugins,
-    ui,
-    shortcuts,
-    sanitize,
-    i18n,
-    placeholder,
-    defaultBlock,
-    readOnly,
-    autofocus,
-    minHeight,
-    inlineToolbar,
-    className,
-    style,
-    onChange,
-    onReady,
-    onApi,
-  } = props
+  const onChangeRef = useRef(props.onChange)
+  const onReadyRef = useRef(props.onReady)
+  const onApiRef = useRef(props.onApi)
+  const lastEmittedJson = useRef<string | null>(null)
+  const configured = useRef(false)
 
+  onChangeRef.current = props.onChange
+  onReadyRef.current = props.onReady
+  onApiRef.current = props.onApi
+
+  // One-time structural config (tools/tunes/etc). Remounting these mid-edit is intentional
+  // only when the host identity of those objects changes — not on every render.
   useEffect(() => {
     const el = ref.current
     if (!el) return
-    if (tools) el.tools = tools
-    if (tunes) el.tunes = tunes
-    if (plugins) el.plugins = plugins
-    if (ui) el.ui = ui
-    if (shortcuts) el.shortcuts = shortcuts
-    if (sanitize) el.sanitize = sanitize
-    if (i18n) el.i18n = i18n
-    el.inlineToolbar = !!inlineToolbar
-    if (data) el.data = data
-    onApi?.(el.getAPI())
-  }, [tools, tunes, plugins, ui, shortcuts, sanitize, i18n, inlineToolbar, data, onApi])
+    if (props.tools) el.tools = props.tools
+    if (props.tunes) el.tunes = props.tunes
+    if (props.plugins) el.plugins = props.plugins
+    if (props.ui) el.ui = props.ui
+    if (props.shortcuts) el.shortcuts = props.shortcuts
+    if (props.sanitize) el.sanitize = props.sanitize
+    if (props.i18n) el.i18n = props.i18n
+    el.inlineToolbar = !!props.inlineToolbar
+    if (!configured.current && props.data) {
+      el.data = props.data
+      lastEmittedJson.current = JSON.stringify(props.data)
+    }
+    configured.current = true
+    onApiRef.current?.(el.getAPI())
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- mount / identity changes only
+  }, [props.tools, props.tunes, props.plugins, props.ui, props.shortcuts, props.sanitize, props.i18n, props.inlineToolbar])
+
+  // Apply external data only when it differs from the last editor-emitted snapshot
+  // (avoids wiping the caret on controlled onChange loops).
+  useEffect(() => {
+    const el = ref.current
+    if (!el || !props.data) return
+    const json = JSON.stringify(props.data)
+    if (json === lastEmittedJson.current) return
+    lastEmittedJson.current = json
+    el.render(props.data)
+  }, [props.data])
 
   useEffect(() => {
     const el = ref.current
     if (!el) return
     const handleChange = (e: Event) => {
-      onChange?.((e as CustomEvent<OutputData>).detail)
+      const detail = (e as CustomEvent<OutputData>).detail
+      lastEmittedJson.current = JSON.stringify(detail)
+      onChangeRef.current?.(detail)
     }
-    const handleReady = () => onReady?.()
+    const handleReady = () => onReadyRef.current?.()
     el.addEventListener('change', handleChange)
     el.addEventListener('ready', handleReady)
     return () => {
       el.removeEventListener('change', handleChange)
       el.removeEventListener('ready', handleReady)
     }
-  }, [onChange, onReady])
+  }, [])
 
   useEffect(() => {
-    ref.current?.setReadOnly(!!readOnly)
-  }, [readOnly])
+    ref.current?.setReadOnly(!!props.readOnly)
+  }, [props.readOnly])
 
   return createElement('doc-editor', {
     ref,
-    className,
-    style,
-    placeholder,
-    'default-block': defaultBlock,
-    readonly: readOnly ? true : undefined,
-    autofocus: autofocus ? true : undefined,
-    'min-height': minHeight != null ? String(minHeight) : undefined,
-    'inline-toolbar': inlineToolbar ? true : undefined,
+    className: props.className,
+    style: props.style,
+    placeholder: props.placeholder,
+    'default-block': props.defaultBlock,
+    readonly: props.readOnly ? true : undefined,
+    autofocus: props.autofocus ? true : undefined,
+    'min-height': props.minHeight != null ? String(props.minHeight) : undefined,
+    'inline-toolbar': props.inlineToolbar ? true : undefined,
   })
 }
 

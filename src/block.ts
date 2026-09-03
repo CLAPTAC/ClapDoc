@@ -35,7 +35,10 @@ export class Block {
   readonly tool: BlockTool
   readonly resolved: ResolvedTool
   readonly wrapper: HTMLElement
+  /** Outermost content node in the block (may be a tune wrap). */
   readonly content: HTMLElement
+  /** Node returned by tool.render() — always what tool.save() should receive. */
+  readonly toolContent: HTMLElement
   private tuneInstances: Map<string, BlockTune> = new Map()
   private tuneData: Record<string, BlockToolData>
 
@@ -59,8 +62,11 @@ export class Block {
     this.wrapper.dataset.blockType = this.type
     this.wrapper.draggable = false
 
-    let content = this.tool.render()
-    content.classList.add('de-block-content')
+    const toolContent = this.tool.render()
+    toolContent.classList.add('de-block-content')
+    this.toolContent = toolContent
+
+    let content: HTMLElement = toolContent
 
     // Apply tunes that wrap content
     if (options.tuneClasses) {
@@ -98,13 +104,13 @@ export class Block {
   }
 
   async save(): Promise<OutputBlockData> {
-    const data = await this.tool.save(this.content)
+    const data = await this.tool.save(this.toolContent)
     return this.toOutput(data)
   }
 
   /** Best-effort sync save for API getters; falls back to empty data if tool.save is async. */
   saveSync(): OutputBlockData {
-    const result = this.tool.save(this.content)
+    const result = this.tool.save(this.toolContent)
     if (result instanceof Promise) {
       return { id: this.id, type: this.type, data: {} }
     }
@@ -113,7 +119,11 @@ export class Block {
 
   focus(): void {
     const editable =
-      this.content.querySelector<HTMLElement>('[contenteditable="true"]') ?? this.content
+      this.toolContent.matches?.('[contenteditable="true"]')
+        ? this.toolContent
+        : this.toolContent.querySelector<HTMLElement>('[contenteditable="true"]') ??
+          this.content.querySelector<HTMLElement>('[contenteditable="true"]') ??
+          this.toolContent
     editable.focus()
     const range = document.createRange()
     const sel = window.getSelection()
@@ -136,14 +146,42 @@ export class Block {
     for (const tune of this.tuneInstances.values()) tune.destroy?.()
   }
 
+  hasSettings(): boolean {
+    return typeof this.tool.renderSettings === 'function' || this.tuneInstances.size > 0
+  }
+
   getSettingsElement(): HTMLElement | null {
-    return this.tool.renderSettings?.() ?? null
+    const bundle = document.createElement('div')
+    bundle.className = 'de-settings-bundle'
+    let has = false
+
+    const toolSettings = this.tool.renderSettings?.()
+    if (toolSettings) {
+      bundle.appendChild(toolSettings)
+      has = true
+    }
+    for (const tune of this.tuneInstances.values()) {
+      const el = tune.render()
+      if (el) {
+        bundle.appendChild(el)
+        has = true
+      }
+    }
+    return has ? bundle : null
   }
 
   setReadOnly(readOnly: boolean): void {
-    const editables = this.content.querySelectorAll<HTMLElement>('[contenteditable]')
-    for (const el of editables) {
-      el.contentEditable = readOnly ? 'false' : 'true'
+    const seen = new Set<HTMLElement>()
+    const apply = (el: HTMLElement | null | undefined) => {
+      if (!el || seen.has(el)) return
+      seen.add(el)
+      if (el.getAttribute('contenteditable') != null || el.isContentEditable) {
+        el.contentEditable = readOnly ? 'false' : 'true'
+      }
     }
+    apply(this.toolContent)
+    apply(this.content)
+    this.content.querySelectorAll<HTMLElement>('[contenteditable]').forEach(apply)
+    this.toolContent.querySelectorAll<HTMLElement>('[contenteditable]').forEach(apply)
   }
 }

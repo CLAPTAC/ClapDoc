@@ -39,7 +39,8 @@ export function processPaste(
 }
 
 function applySanitize(html: string, config?: SanitizeConfig): string {
-  if (config?.enabled === false) return html
+  // Always sanitize — `enabled: false` is ignored to prevent XSS bypass.
+  void config?.enabled
   let out = sanitizeHtml(html)
   for (const tag of config?.forbidTags ?? []) {
     const re = new RegExp(`<${tag}[\\s\\S]*?(</${tag}>|/>)`, 'gi')
@@ -65,13 +66,10 @@ function parseHtmlToBlocks(html: string, options: PastePipelineOptions): PasteBl
     if (!(node instanceof HTMLElement)) continue
 
     const tag = node.tagName.toUpperCase()
-    const matched = findToolForTag(tag, options.tools)
-    if (matched) {
-      const data = matched.class.conversionConfig?.import
-        ? matched.class.conversionConfig.import(node.innerHTML)
-        : htmlElementToData(tag, node)
-      results.push({ type: matched.name, data })
-    } else if (tag === 'UL' || tag === 'OL') {
+
+    // Handle lists before pasteConfig matching — ListTool.conversionConfig.import
+    // splits on newlines and cannot parse <li> children.
+    if (tag === 'UL' || tag === 'OL') {
       const items = Array.from(node.querySelectorAll(':scope > li')).map((li) => li.innerHTML)
       results.push({
         type: options.tools.has('list') ? 'list' : options.defaultBlock,
@@ -79,6 +77,15 @@ function parseHtmlToBlocks(html: string, options: PastePipelineOptions): PasteBl
           ? { style: tag === 'OL' ? 'ordered' : 'unordered', items }
           : { text: items.join('<br>') },
       })
+      continue
+    }
+
+    const matched = findToolForTag(tag, options.tools)
+    if (matched) {
+      const data = matched.class.conversionConfig?.import
+        ? matched.class.conversionConfig.import(node.innerHTML)
+        : htmlElementToData(tag, node)
+      results.push({ type: matched.name, data })
     } else if (tag === 'P' || tag === 'DIV') {
       const inner = node.innerHTML.trim()
       if (inner) results.push({ type: options.defaultBlock, data: { text: inner } })

@@ -48,7 +48,9 @@ export class UIController {
   }
 
   decorate(block: Block): HTMLElement {
-    if (!this.config.showControls || this.readOnly) return block.wrapper
+    // Always create controls; visibility is gated by .de-readonly CSS so toggling
+    // read-only later does not leave blocks without a gutter.
+    if (!this.config.showControls) return block.wrapper
 
     const list = this.config.controls ?? DEFAULT_CONTROLS
     const controls = document.createElement('div')
@@ -64,7 +66,7 @@ export class UIController {
     }
 
     const overflow = list.filter((c) => c === 'up' || c === 'down' || c === 'settings' || c === 'delete')
-    const hasSettings = typeof block.tool.renderSettings === 'function'
+    const hasSettings = block.hasSettings()
     const overflowVisible = overflow.filter((c) => c !== 'settings' || hasSettings)
 
     if (overflowVisible.length) {
@@ -75,8 +77,11 @@ export class UIController {
 
     block.wrapper.prepend(controls)
 
-    const dragHandle = controls.querySelector('.de-drag')
+    const dragHandle = controls.querySelector('.de-drag') as HTMLElement | null
     if (dragHandle) {
+      const resetDraggable = () => {
+        block.wrapper.draggable = false
+      }
       block.wrapper.addEventListener('dragstart', (e) => {
         if (!(e.target as HTMLElement).closest('.de-drag')) {
           e.preventDefault()
@@ -86,14 +91,14 @@ export class UIController {
       })
       block.wrapper.addEventListener('dragover', (e) => this.callbacks.onDragOver(block.id, e))
       block.wrapper.addEventListener('drop', (e) => this.callbacks.onDrop(block.id, e))
-      block.wrapper.addEventListener('dragend', () => this.callbacks.onDragEnd())
-      // Only the handle initiates drag; keep the block itself non-draggable for text selection
-      block.wrapper.draggable = false
-      ;(dragHandle as HTMLElement).addEventListener('mousedown', () => {
-        block.wrapper.draggable = true
+      block.wrapper.addEventListener('dragend', () => {
+        resetDraggable()
+        this.callbacks.onDragEnd()
       })
-      ;(dragHandle as HTMLElement).addEventListener('mouseup', () => {
-        block.wrapper.draggable = false
+      dragHandle.addEventListener('mousedown', () => {
+        block.wrapper.draggable = true
+        // Real drags often skip handle mouseup; clear on the next pointerup/dragend.
+        window.addEventListener('pointerup', resetDraggable, { once: true })
       })
     }
 

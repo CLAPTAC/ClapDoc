@@ -1,6 +1,6 @@
 export { Editor, DEFAULT_TOOLS, Block } from './editor'
 export { DocEditorElement, defineDocEditor } from './web-component'
-export { blocksToMarkdown, sanitizeHtml } from './utils/markdown'
+export { blocksToMarkdown, sanitizeHtml, isSafeHref } from './utils/markdown'
 export { ParagraphTool } from './tools/paragraph'
 export { HeaderTool } from './tools/header'
 export { ListTool } from './tools/list'

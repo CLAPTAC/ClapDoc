@@ -287,26 +287,36 @@ export class Editor {
     this.scheduleChange(true)
   }
 
-  private async convertBlock(blockId: string, newType: string): Promise<void> {
+  private async convertBlock(
+    blockId: string,
+    newType: string,
+    options?: { data?: BlockToolData; clearContent?: boolean }
+  ): Promise<void> {
     const block = this.manager.getById(blockId)
     if (!block) return
-    const saved = await block.save()
-    const fromTool = this.tools.get(block.type)
     const toTool = this.tools.get(newType)
     if (!toTool) return
 
-    let text = ''
-    if (fromTool?.class.conversionConfig?.export) {
-      text = fromTool.class.conversionConfig.export(saved.data)
-    } else if (typeof saved.data.text === 'string') {
-      text = saved.data.text
+    let data: BlockToolData
+    if (options?.data) {
+      data = options.data
+    } else if (options?.clearContent) {
+      data = toTool.class.conversionConfig?.import?.('') ?? {}
     } else {
-      text = JSON.stringify(saved.data)
+      const saved = await block.save()
+      const fromTool = this.tools.get(block.type)
+      let text = ''
+      if (fromTool?.class.conversionConfig?.export) {
+        text = fromTool.class.conversionConfig.export(saved.data)
+      } else if (typeof saved.data.text === 'string') {
+        text = saved.data.text
+      } else {
+        text = JSON.stringify(saved.data)
+      }
+      data = toTool.class.conversionConfig?.import
+        ? toTool.class.conversionConfig.import(text)
+        : { text }
     }
-
-    const data = toTool.class.conversionConfig?.import
-      ? toTool.class.conversionConfig.import(text)
-      : { text }
 
     await this.manager.replace(blockId, newType, data)
     this.manager.getById(blockId)?.focus()
@@ -367,13 +377,13 @@ export class Editor {
       if (text.startsWith('/') && (wrapper?.dataset.blockType === 'paragraph' || wrapper?.dataset.blockType === 'header')) {
         const filter = text.slice(1)
         this.ui.openSlashMenu(wrapper!, this.toolboxTools(), filter, (name) => {
-          void this.convertBlock(blockId, name)
+          void this.convertBlock(blockId, name, { clearContent: true })
         })
       } else if (this.ui.isSlashOpen() && !text.startsWith('/')) {
         this.ui.closeMenus()
       } else if (this.ui.isSlashOpen() && text.startsWith('/')) {
         this.ui.openSlashMenu(wrapper!, this.toolboxTools(), text.slice(1), (name) => {
-          void this.convertBlock(blockId, name)
+          void this.convertBlock(blockId, name, { clearContent: true })
         })
       }
     }
@@ -403,9 +413,33 @@ export class Editor {
     })
     if (!results || results.length === 0) return
 
+    const plain = e.clipboardData?.getData('text/plain') ?? ''
+    const html = e.clipboardData?.getData('text/html') ?? ''
+    const isSingleSameType = results.length === 1 && results[0]!.type === block?.type
+    const looksInline =
+      isSingleSameType &&
+      !plain.includes('\n') &&
+      !(html && /<(ul|ol|h[1-3]|blockquote|hr|img|table)\b/i.test(html))
+
+    // Keep caret paste for a single same-type fragment (e.g. a word into a paragraph).
+    if (looksInline) {
+      e.preventDefault()
+      const fragment =
+        typeof results[0]!.data.text === 'string'
+          ? String(results[0]!.data.text)
+          : plain
+      // Prefer plain text insertion to avoid nested block chrome; HTML already sanitized upstream.
+      if (html && /<[a-z][\s\S]*>/i.test(fragment)) {
+        document.execCommand('insertHTML', false, fragment)
+      } else {
+        document.execCommand('insertText', false, plain || fragment.replace(/<[^>]+>/g, ''))
+      }
+      this.scheduleChange(false)
+      return
+    }
+
     e.preventDefault()
 
-    // Replace current block with first result, insert the rest after
     const [first, ...rest] = results
     void (async () => {
       await this.manager.replace(blockId, first!.type, first!.data)
@@ -456,7 +490,7 @@ export class Editor {
         this.ui.closeMenus()
         const wrapper = (e.target as HTMLElement).closest<HTMLElement>('.de-block')
         const blockId = wrapper?.dataset.blockId
-        if (name && blockId) void this.convertBlock(blockId, name)
+        if (name && blockId) void this.convertBlock(blockId, name, { clearContent: true })
         return
       }
       if (e.key === 'Escape') {
@@ -510,26 +544,44 @@ export class Editor {
     return pressed === key || e.code.toLowerCase() === `key${key}`
   }
 
+  private clearPendingTimers(): void {
+    if (this.changeTimer) clearTimeout(this.changeTimer)
+    if (this.historyTimer) clearTimeout(this.historyTimer)
+    this.changeTimer = null
+    this.historyTimer = null
+  }
+
   private scheduleChange(structural: boolean): void {
     if (this.applyingHistory) return
+
+    if (structural) {
+      this.clearPendingTimers()
+      void this.save().then((data) => {
+        if (this.applyingHistory) return
+        this.history.push(data)
+        this.events.emit('change', data)
+        this.config.onChange?.(data)
+      })
+      return
+    }
+
     if (this.changeTimer) clearTimeout(this.changeTimer)
     this.changeTimer = setTimeout(async () => {
       const data = await this.save()
+      if (this.applyingHistory) return
       this.events.emit('change', data)
       this.config.onChange?.(data)
-
-      if (structural) {
-        this.history.push(data)
-      } else {
-        if (this.historyTimer) clearTimeout(this.historyTimer)
-        this.historyTimer = setTimeout(() => {
-          void this.save().then((d) => this.history.push(d))
-        }, HISTORY_COALESCE_MS)
-      }
+      if (this.historyTimer) clearTimeout(this.historyTimer)
+      this.historyTimer = setTimeout(() => {
+        void this.save().then((d) => {
+          if (!this.applyingHistory) this.history.push(d)
+        })
+      }, HISTORY_COALESCE_MS)
     }, CHANGE_DEBOUNCE_MS)
   }
 
   async undo(): Promise<void> {
+    this.clearPendingTimers()
     const current = await this.save()
     const prev = this.history.undo(current)
     if (!prev) return
@@ -541,6 +593,7 @@ export class Editor {
   }
 
   async redo(): Promise<void> {
+    this.clearPendingTimers()
     const current = await this.save()
     const next = this.history.redo(current)
     if (!next) return

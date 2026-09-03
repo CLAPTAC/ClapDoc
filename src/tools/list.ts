@@ -12,7 +12,8 @@ export class ListTool implements BlockTool {
   }
 
   static pasteConfig: PasteConfig = {
-    tags: ['UL', 'OL'],
+    // UL/OL are handled by the paste pipeline's dedicated list parser, not conversionConfig.import
+    tags: [],
   }
 
   static conversionConfig: ConversionConfig = {
